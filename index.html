@@ -3,8 +3,9 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 光路实验室 v0.6 (移动触控版)</title>
+    <title>AI 光路实验室 v0.7 (移动端重构版)</title>
     <style>
+        /* --- 全局基础样式 --- */
         body {
             margin: 0;
             background-color: #0d1117;
@@ -13,100 +14,94 @@
             display: flex;
             flex-direction: column;
             align-items: center;
-            height: 100vh;
+            /* 默认(电脑)居中显示，手机版会被媒体查询覆盖 */
             justify-content: center;
-            overflow: hidden; /* 防止页面滚动 */
-            touch-action: none; /* 禁止浏览器默认的手势操作 */
+            min-height: 100vh;
+            /* 手机上允许滚动，防止内容显示不全 */
+            overflow-x: hidden;
+            overflow-y: auto;
+            touch-action: pan-y; /* 允许垂直滚动，但画布区域会阻止 */
+            padding: 10px 0; /* 给手机上下留点缝隙 */
+            box-sizing: border-box;
         }
 
-        /* --- 左侧 HUD 仪表盘 --- */
+        /* --- HUD 仪表盘 --- */
         #hud-container {
+            /* 电脑版绝对定位 */
             position: absolute;
             top: 20px;
             left: 20px;
             display: flex;
-            gap: 15px;
+            gap: 10px;
             flex-wrap: wrap;
             z-index: 10;
-            pointer-events: none; /* 让触摸穿透仪表盘，防止遮挡操作 */
+            pointer-events: none;
         }
 
         .hud-box {
             background: rgba(22, 27, 34, 0.85);
             border: 1px solid #30363d;
             border-radius: 8px;
-            padding: 8px 12px; /* 手机上改小一点边距 */
+            padding: 8px 12px;
             box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
             backdrop-filter: blur(10px);
-            min-width: 100px;
+            flex: 1 1 auto; /* 弹性宽度 */
+            min-width: 90px;
+            text-align: center;
         }
 
-        .hud-label {
-            font-size: 10px;
-            color: #8b949e;
-            margin-bottom: 2px;
-            text-transform: uppercase;
-        }
+        .hud-label { font-size: 10px; color: #8b949e; margin-bottom: 2px; text-transform: uppercase; }
         .hud-label strong { font-size: 12px; color: #c9d1d9; display: block; }
-        .hud-value { font-size: 20px; font-weight: bold; color: #58a6ff; font-family: 'Consolas', monospace; }
-        .hud-unit { font-size: 12px; color: #8b949e; margin-left: 4px; }
-        .highlight-text { color: #f2cc60; }
-        .highlight-blue { color: #58a6ff; }
+        .hud-value { font-size: 18px; font-weight: bold; color: #58a6ff; font-family: 'Consolas', monospace; }
+        .hud-unit { font-size: 12px; color: #8b949e; margin-left: 2px; }
+        .highlight-text { color: #f2cc60; } .highlight-blue { color: #58a6ff; }
 
         /* --- 画布容器 --- */
         #canvas-wrapper {
             position: relative;
-            box-shadow: 0 0 100px rgba(88, 166, 255, 0.05);
+            box-shadow: 0 0 50px rgba(88, 166, 255, 0.05);
             border-radius: 12px;
             overflow: hidden;
             border: 1px solid #30363d;
-            /* 确保画布在手机上不超宽 */
-            max-width: 95vw; 
-            max-height: 80vh;
+            /* 确保在任何屏幕上都不超宽，并保持比例 */
+            width: 95vw;
+            max-width: 800px; /* 电脑上最大宽度 */
+            aspect-ratio: 2 / 1; /* 强制保持 2:1 长宽比 */
+            margin: 10px 0; /* 上下留空 */
+            touch-action: none; /* 关键：画布区域禁止滚动浏览器 */
         }
         canvas {
-            background-image: 
-                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-            background-size: 20px 20px;
-            background-color: #0d1117;
-            cursor: crosshair;
-            display: block; /* 消除底部空隙 */
+            width: 100%; height: 100%; /* 填满容器 */
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 20px 20px; background-color: #0d1117;
+            display: block;
         }
 
-        /* --- 底部公式投影区 --- */
+        /* --- 底部公式区 --- */
         #formula-bar {
-            margin-top: 10px;
+            margin-top: 5px;
             background: #161b22;
-            padding: 8px 20px;
+            padding: 8px 15px;
             border-radius: 12px;
             border: 1px solid #30363d;
             display: flex;
             align-items: center;
-            gap: 20px;
+            gap: 15px;
             box-shadow: 0 0 20px rgba(88, 166, 255, 0.1);
-            transform: scale(0.9); /* 手机上稍微缩小一点 */
+            width: 90vw; max-width: 600px;
+            justify-content: center;
+            flex-wrap: wrap; /* 小屏自动换行 */
         }
-        .formula-item {
-            font-family: 'Times New Roman', serif;
-            font-size: 18px;
-            font-style: italic;
-            color: #8b949e;
-        }
-        .formula-live {
-            font-family: 'Consolas', monospace;
-            font-size: 16px;
-            color: #c9d1d9;
-        }
-        .formula-highlight { color: #58a6ff; font-weight: bold; }
-        .formula-result { color: #f2cc60; font-weight: bold; }
+        .formula-item { font-family: 'Times New Roman', serif; font-size: 16px; font-style: italic; color: #8b949e; white-space: nowrap; }
+        .formula-live { font-family: 'Consolas', monospace; font-size: 16px; color: #c9d1d9; white-space: nowrap; }
+        .formula-highlight { color: #58a6ff; font-weight: bold; } .formula-result { color: #f2cc60; font-weight: bold; }
 
-        /* --- 右侧控制面板 --- */
+        /* --- 控制面板 (默认电脑版样式) --- */
         #control-panel {
             position: absolute;
             right: 20px;
             top: 20px;
-            width: 240px; /* 手机上稍微窄一点 */
+            width: 220px;
             background: rgba(22, 27, 34, 0.95);
             border: 1px solid #58a6ff;
             border-radius: 8px;
@@ -114,88 +109,74 @@
             box-shadow: 0 0 30px rgba(88, 166, 255, 0.2);
             backdrop-filter: blur(10px);
             z-index: 20;
-            transform-origin: top right;
-            transform: scale(0.9); /* 整体缩放以适应小屏 */
         }
 
-        h2 { font-size: 14px; margin: 0 0 10px 0; color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
-        
-        .control-group { margin-bottom: 15px; }
+        h2 { font-size: 14px; margin: 0 0 10px 0; color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 8px; text-align: center; }
+        .control-group { margin-bottom: 12px; }
         .control-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
         .control-label { font-size: 12px; color: #c9d1d9; }
-        
-        .input-smart {
-            width: 60px;
-            background: #0d1117;
-            border: 1px solid #30363d;
-            color: #58a6ff;
-            padding: 2px 5px;
-            border-radius: 4px;
-            font-family: 'Consolas', monospace;
-            font-size: 13px;
-            text-align: right;
-            outline: none;
-        }
-
+        .input-smart { width: 50px; background: #0d1117; border: 1px solid #30363d; color: #58a6ff; padding: 2px 5px; border-radius: 4px; font-family: 'Consolas', monospace; font-size: 13px; text-align: right; outline: none; }
         input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; }
-        input[type=range]::-webkit-slider-thumb {
-            -webkit-appearance: none; height: 16px; width: 16px;
-            border-radius: 50%; background: #58a6ff;
-            cursor: pointer; margin-top: -6px;
-            box-shadow: 0 0 10px rgba(88, 166, 255, 0.8);
-        }
+        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 16px; width: 16px; border-radius: 50%; background: #58a6ff; cursor: pointer; margin-top: -6px; }
         input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; cursor: pointer; background: #30363d; border-radius: 2px; }
-
         .preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 5px; margin-top: 5px; }
-        .btn-preset {
-            background: #21262d; border: 1px solid #30363d;
-            color: #c9d1d9; padding: 6px 0; border-radius: 6px;
-            font-size: 10px; cursor: pointer; text-align: center;
-        }
+        .btn-preset { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 8px 0; border-radius: 6px; font-size: 11px; cursor: pointer; text-align: center; }
         .btn-preset:active { background: #58a6ff; color: #fff; }
 
-        /* 手机适配：如果屏幕太窄，自动隐藏一些非核心元素 */
-        @media (max-width: 600px) {
-            #control-panel { display: none; } /* 小手机隐藏控制台，专注拖拽体验 */
-            #formula-bar { font-size: 12px; }
+        /* ========= 核心魔法：手机端自适应媒体查询 ========= */
+        @media (max-width: 850px) {
+            /* 1. 让 Body 从上到下排列，不再居中 */
+            body {
+                justify-content: flex-start;
+                padding-top: 10px;
+                height: auto; /* 允许内容撑开高度 */
+            }
+
+            /* 2. HUD 仪表盘：取消绝对定位，变成文档流的一部分 */
+            #hud-container {
+                position: static; /* 回到文档流 */
+                width: 95vw;
+                justify-content: space-between; /* 两端对齐 */
+                margin-bottom: 15px;
+            }
+            .hud-box { padding: 6px 8px; min-width: auto; }
+            .hud-value { font-size: 16px; }
+
+            /* 3. 控制面板：取消绝对定位，放到画布上方，宽度拉满 */
+            #control-panel {
+                position: static; /* 回到文档流 */
+                width: 90vw; /* 宽度占满 */
+                max-width: none;
+                margin-bottom: 15px; /* 和画布拉开距离 */
+                transform: none; /* 取消缩放 */
+                box-sizing: border-box;
+            }
+            
+            /* 4. 调整画布容器 */
+            #canvas-wrapper {
+                width: 95vw;
+                /* 高度由 aspect-ratio 自动计算 */
+            }
         }
     </style>
 </head>
 <body>
 
     <div id="hud-container">
-        <div class="hud-box">
-            <div class="hud-label"><strong>焦距</strong>(f)</div>
-            <div><span id="hud-f" class="hud-value">10.0</span> <span class="hud-unit">cm</span></div>
-        </div>
-        <div class="hud-box">
-            <div class="hud-label"><strong>物距</strong>(u)</div>
-            <div><span id="val-u" class="hud-value highlight-blue">20.0</span> <span class="hud-unit">cm</span></div>
-        </div>
-        <div class="hud-box">
-            <div class="hud-label"><strong>像距</strong>(v)</div>
-            <div><span id="val-v" class="hud-value highlight-text">20.0</span> <span class="hud-unit">cm</span></div>
-        </div>
-        <div class="hud-box" style="min-width: 200px;">
-            <div class="hud-label"><strong>性质</strong>Prop</div>
-            <div id="img-prop-cn" class="hud-value" style="font-size: 16px;">分析中...</div>
-        </div>
+        <div class="hud-box"><div><strong>焦距</strong>(f)</div><div><span id="hud-f" class="hud-value">10.0</span><span class="hud-unit">cm</span></div></div>
+        <div class="hud-box"><div><strong>物距</strong>(u)</div><div><span id="val-u" class="hud-value highlight-blue">20.0</span><span class="hud-unit">cm</span></div></div>
+        <div class="hud-box"><div><strong>像距</strong>(v)</div><div><span id="val-v" class="hud-value highlight-text">20.0</span><span class="hud-unit">cm</span></div></div>
+        <div class="hud-box" style="flex: 1.5;"><div><strong>性质</strong>Prop</div><div id="img-prop-cn" class="hud-value" style="font-size: 14px; line-height: 1.2;">分析中...</div></div>
     </div>
 
     <div id="control-panel">
         <h2>🧪 实验控制 (Controls)</h2>
         <div class="control-group">
-            <div class="control-header">
-                <span class="control-label">焦距 f</span>
-                <input type="text" id="input-f" class="input-smart" value="10.0">
-            </div>
+            <div class="control-header"><span class="control-label">焦距 f</span><input type="text" id="input-f" class="input-smart" value="10.0"></div>
             <input type="range" id="slider-f" min="5" max="20" step="0.1" value="10">
         </div>
         <div class="control-group">
-            <div class="control-header">
-                <span class="control-label">物距 u</span>
-                <input type="text" id="input-u" class="input-smart" value="20.0">
-            </div>
+            <div class="control-header"><span class="control-label">物距 u</span><input type="text" id="input-u" class="input-smart" value="20.0"></div>
             <input type="range" id="slider-u" min="2" max="50" step="0.1" value="20">
         </div>
         <div class="control-group">
@@ -208,155 +189,111 @@
     </div>
 
     <div id="canvas-wrapper">
-        <canvas id="opticsCanvas" width="1000" height="500"></canvas>
+        <canvas id="opticsCanvas"></canvas>
     </div>
 
     <div id="formula-bar">
         <div class="formula-item">1/f = 1/u + 1/v</div>
-        <div style="width: 1px; height: 20px; background: #30363d;"></div>
-        <div class="formula-live" id="formula-dynamic">
-            1/<span class="formula-highlight">10</span> = 1/<span class="formula-highlight">20</span> + 1/<span class="formula-result">20</span>
-        </div>
+        <div style="width: 1px; height: 15px; background: #30363d;"></div>
+        <div class="formula-live" id="formula-dynamic">Loading...</div>
     </div>
 
 <script>
     const canvas = document.getElementById('opticsCanvas');
     const ctx = canvas.getContext('2d');
     
-    // 自适应画布大小 (简单版)
-    // 实际商业项目中会做更复杂的Resize监听，这里针对iPad优化
+    // --- 核心：响应式画布尺寸 ---
+    function resizeCanvas() {
+        // 获取容器的实际像素大小
+        const container = document.getElementById('canvas-wrapper');
+        canvas.width = container.clientWidth;
+        canvas.height = container.clientHeight;
+        // 重绘一次确保不走样
+        draw();
+    }
+    // 监听窗口大小变化（比如横竖屏切换）
+    window.addEventListener('resize', resizeCanvas);
     
     const SCALE = 10; 
-    let f_cm = 10.0;  
-    let f = f_cm * SCALE;
-
-    const lensX = canvas.width / 2;
-    const axisY = canvas.height / 2;
-    
-    let objectPos = { x: lensX - (20 * SCALE), y: axisY, h: 60 }; 
+    let f_cm = 10.0; let f = f_cm * SCALE;
+    // 初始位置：让物体在画布中间偏左一点
+    let objectPos = { x_cm: 20.0, h: 60 }; 
     let isDragging = false;
 
     // UI 引用
-    const sliderF = document.getElementById('slider-f');
-    const inputF = document.getElementById('input-f');
-    const sliderU = document.getElementById('slider-u');
-    const inputU = document.getElementById('input-u');
-    const hudF = document.getElementById('hud-f');
-    const formulaDiv = document.getElementById('formula-dynamic');
+    const sliderF = document.getElementById('slider-f'); const inputF = document.getElementById('input-f');
+    const sliderU = document.getElementById('slider-u'); const inputU = document.getElementById('input-u');
+    const hudF = document.getElementById('hud-f'); const formulaDiv = document.getElementById('formula-dynamic');
 
-    // --- 核心修复：统一鼠标和触摸坐标 ---
-    function getPointerPos(evt) {
+    // --- 坐标转换核心 ---
+    // 将屏幕/鼠标坐标转换为画布内的物理坐标 (cm)
+    function getPointerCm(evt) {
         const rect = canvas.getBoundingClientRect();
-        let clientX, clientY;
-
-        // 判断是触摸还是鼠标
-        if (evt.touches && evt.touches.length > 0) {
-            clientX = evt.touches[0].clientX;
-            clientY = evt.touches[0].clientY;
-        } else {
-            clientX = evt.clientX;
-            clientY = evt.clientY;
-        }
-
-        // 计算画布内的坐标 (考虑CSS缩放)
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-
-        return {
-            x: (clientX - rect.left) * scaleX,
-            y: (clientY - rect.top) * scaleY
-        };
+        let clientX = evt.touches ? evt.touches[0].clientX : evt.clientX;
+        // 计算鼠标在画布内的像素X坐标
+        let x_px_in_canvas = (clientX - rect.left) * (canvas.width / rect.width);
+        // 透镜中心X坐标
+        let lensX = canvas.width / 2;
+        // 转换为距离透镜的 cm 数
+        return (lensX - x_px_in_canvas) / SCALE;
     }
 
-    // --- 事件监听 (同时监听 Mouse 和 Touch) ---
-    
-    // 1. 开始拖动
+    // --- 事件监听 ---
     function handleStart(e) {
-        const pos = getPointerPos(e);
-        // 判定点击范围 (放大判定区方便手指点击)
-        if (Math.abs(pos.x - objectPos.x) < 50 && Math.abs(pos.y - (axisY - objectPos.h/2)) < 100) {
+        const u_cm_click = getPointerCm(e);
+        const axisY = canvas.height / 2;
+        const rect = canvas.getBoundingClientRect();
+        let clientY = evt.touches ? evt.touches[0].clientY : evt.clientY;
+        let y_px_in_canvas = (clientY - rect.top) * (canvas.height / rect.height);
+
+        // 判定点击 X 范围 (扩大判定区 ±1.5cm) 和 Y 范围
+        if (Math.abs(u_cm_click - objectPos.x_cm) < 1.5 && Math.abs(y_px_in_canvas - (axisY - objectPos.h/2)) < 100) {
             isDragging = true;
-            canvas.style.cursor = 'ew-resize';
         }
     }
 
-    // 2. 拖动中
     function handleMove(e) {
         if (isDragging) {
-            // 关键：防止手机拖动时导致页面滚动
-            e.preventDefault(); 
+            // 阻止画布区域的默认滚动
+            if (e.cancelable) e.preventDefault(); 
             
-            const pos = getPointerPos(e);
-            let newX = pos.x;
+            let newU = getPointerCm(e);
+            const lensX_cm = (canvas.width / 2) / SCALE;
+            // 限制范围：物体不能跑到透镜右边，也不能跑出左边界
+            if (newU < 0.5) newU = 0.5; 
+            if (newU > lensX_cm - 1) newU = lensX_cm - 1;
             
-            // 限制范围
-            if (newX > lensX - 10) newX = lensX - 10;
-            if (newX < 50) newX = 50;
-            objectPos.x = newX;
-            
+            objectPos.x_cm = newU;
             // 同步UI
-            const u_cm = (lensX - objectPos.x) / SCALE;
-            sliderU.value = u_cm.toFixed(1);
-            inputU.value = u_cm.toFixed(1);
-            updateAllUI();
-        } else {
-            // 悬停效果 (仅鼠标有效)
-            if (!e.touches) {
-                const pos = getPointerPos(e);
-                if (Math.abs(pos.x - objectPos.x) < 50) canvas.style.cursor = 'grab';
-                else canvas.style.cursor = 'crosshair';
-            }
+            sliderU.value = newU.toFixed(1);
+            inputU.value = newU.toFixed(1);
+            updateAllUI(); draw();
         }
-        draw();
     }
+    function handleEnd(e) { isDragging = false; }
 
-    // 3. 结束拖动
-    function handleEnd(e) {
-        isDragging = false;
-        canvas.style.cursor = 'crosshair';
-    }
+    canvas.addEventListener('mousedown', handleStart); canvas.addEventListener('mousemove', handleMove); canvas.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('touchstart', handleStart, { passive: false }); canvas.addEventListener('touchmove', handleMove, { passive: false }); canvas.addEventListener('touchend', handleEnd);
 
-    // 绑定鼠标事件
-    canvas.addEventListener('mousedown', handleStart);
-    canvas.addEventListener('mousemove', handleMove);
-    canvas.addEventListener('mouseup', handleEnd);
-
-    // 绑定触摸事件 (新增！)
-    canvas.addEventListener('touchstart', handleStart, { passive: false });
-    canvas.addEventListener('touchmove', handleMove, { passive: false });
-    canvas.addEventListener('touchend', handleEnd);
-
-    // --- 界面同步逻辑 ---
+    // --- 界面同步 ---
     function updateFromInput(type) {
-        if (type === 'f') {
-            let val = parseFloat(inputF.value);
-            if (!isNaN(val)) { f_cm = val; f = f_cm * SCALE; sliderF.value = val; }
-        } else if (type === 'u') {
-            let val = parseFloat(inputU.value);
-            if (!isNaN(val)) { objectPos.x = lensX - (val * SCALE); sliderU.value = val; }
-        }
+        if (type === 'f') { let val = parseFloat(inputF.value); if (!isNaN(val)) { f_cm = val; f = f_cm * SCALE; sliderF.value = val; } } 
+        else if (type === 'u') { let val = parseFloat(inputU.value); if (!isNaN(val)) { objectPos.x_cm = val; sliderU.value = val; } }
         updateAllUI(); draw();
     }
-
     function updateFromSlider(type) {
-        if (type === 'f') {
-            f_cm = parseFloat(sliderF.value); f = f_cm * SCALE; inputF.value = f_cm.toFixed(1);
-        } else if (type === 'u') {
-            const u_cm = parseFloat(sliderU.value); objectPos.x = lensX - (u_cm * SCALE); inputU.value = u_cm.toFixed(1);
-        }
+        if (type === 'f') { f_cm = parseFloat(sliderF.value); f = f_cm * SCALE; inputF.value = f_cm.toFixed(1); } 
+        else if (type === 'u') { objectPos.x_cm = parseFloat(sliderU.value); inputU.value = objectPos.x_cm.toFixed(1); }
         updateAllUI(); draw();
     }
-
-    inputF.addEventListener('input', () => updateFromInput('f'));
-    inputU.addEventListener('input', () => updateFromInput('u'));
-    sliderF.addEventListener('input', () => updateFromSlider('f'));
-    sliderU.addEventListener('input', () => updateFromSlider('u'));
+    inputF.addEventListener('input', () => updateFromInput('f')); inputU.addEventListener('input', () => updateFromInput('u'));
+    sliderF.addEventListener('input', () => updateFromSlider('f')); sliderU.addEventListener('input', () => updateFromSlider('u'));
 
     function updateAllUI() {
         hudF.innerText = f_cm.toFixed(1);
-        const u_cm = (lensX - objectPos.x) / SCALE;
+        const u_cm = objectPos.x_cm;
         let v_cm_display = "∞";
-        if (Math.abs(u_cm - f_cm) > 0.1) {
+        if (Math.abs(u_cm - f_cm) > 0.05) {
             const v_val = (f_cm * u_cm) / (u_cm - f_cm);
             v_cm_display = Math.abs(v_val).toFixed(1);
         }
@@ -364,76 +301,60 @@
     }
 
     function setPreset(type) {
-        if (type === 'camera') { f_cm = 10; objectPos.x = lensX - (30 * SCALE); }
-        else if (type === 'projector') { f_cm = 10; objectPos.x = lensX - (15 * SCALE); }
-        else if (type === 'magnifier') { f_cm = 10; objectPos.x = lensX - (5 * SCALE); }
+        if (type === 'camera') { f_cm = 10; objectPos.x_cm = 30.0; }
+        else if (type === 'projector') { f_cm = 10; objectPos.x_cm = 15.0; }
+        else if (type === 'magnifier') { f_cm = 10; objectPos.x_cm = 5.0; }
         f = f_cm * SCALE; sliderF.value = f_cm; inputF.value = f_cm.toFixed(1);
-        const u_cm = (lensX - objectPos.x) / SCALE; sliderU.value = u_cm; inputU.value = u_cm.toFixed(1);
+        sliderU.value = objectPos.x_cm; inputU.value = objectPos.x_cm.toFixed(1);
         updateAllUI(); draw();
     }
 
-    // --- 绘图引擎 (保持不变) ---
+    // --- 绘图引擎 ---
     function draw() {
         ctx.clearRect(0, 0, canvas.width, canvas.height);
-        drawGridAndAxis(); drawLens();
-        const u_px = lensX - objectPos.x;
-        const u_cm = u_px / SCALE;
+        const lensX = canvas.width / 2; const axisY = canvas.height / 2;
+        // 根据当前画布宽度动态调整物体高度，保持比例
+        const currentH = objectPos.h * (canvas.height / 500); 
+
+        drawGridAndAxis(lensX, axisY); drawLens(lensX, axisY);
+        const u_px = objectPos.x_cm * SCALE;
         let v_px = 0, imageH = 0, isVirtual = false;
-        if (Math.abs(u_px - f) < 1) { v_px = Infinity; } 
+        if (Math.abs(u_px - f) < 0.5) { v_px = Infinity; } 
         else {
             v_px = (f * u_px) / (u_px - f);
-            const M = v_px / u_px;
-            imageH = objectPos.h * M;
+            const M = v_px / u_px; imageH = currentH * M;
             if (u_px < f) isVirtual = true;
         }
-        updateHUD(u_cm, v_px / SCALE, isVirtual);
-        drawObject(objectPos.x, axisY, objectPos.h);
-        const imageX = lensX + v_px;
-        if (v_px !== Infinity) drawImage(imageX, axisY, -imageH, isVirtual);
-        drawRays(objectPos.x, objectPos.y - objectPos.h, lensX, axisY, f, v_px, -imageH, isVirtual);
+        updateHUD(objectPos.x_cm, v_px / SCALE, isVirtual);
+        drawObject(lensX - u_px, axisY, currentH);
+        if (v_px !== Infinity) drawImage(lensX + v_px, axisY, -imageH, isVirtual);
+        drawRays(lensX - u_px, axisY - currentH, lensX, axisY, f, v_px, -imageH, isVirtual);
     }
 
-    function drawGridAndAxis() {
-        ctx.beginPath(); ctx.strokeStyle = '#30363d'; ctx.lineWidth = 2;
-        ctx.moveTo(0, axisY); ctx.lineTo(canvas.width, axisY); ctx.stroke();
+    // 辅助绘图函数 (保持样式一致)
+    function drawGridAndAxis(lensX, axisY) {
+        ctx.beginPath(); ctx.strokeStyle = '#30363d'; ctx.lineWidth = 2; ctx.moveTo(0, axisY); ctx.lineTo(canvas.width, axisY); ctx.stroke();
         ctx.fillStyle = '#8b949e'; ctx.font = '12px Consolas';
-        const points = [-2*f, -f, f, 2*f]; const labels = ['2F', 'F', 'F', '2F'];
-        points.forEach((p, i) => {
-            const px = lensX + p;
-            ctx.beginPath(); ctx.arc(px, axisY, 3, 0, Math.PI*2); ctx.fill();
-            ctx.fillText(labels[i], px - 5, axisY + 20);
-        });
+        [-2*f, -f, f, 2*f].forEach((p, i) => { const px = lensX + p; ctx.beginPath(); ctx.arc(px, axisY, 3, 0, Math.PI*2); ctx.fill(); ctx.fillText(['2F','F','F','2F'][i], px - 5, axisY + 20); });
     }
-
-    function drawLens() {
-        ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(88, 166, 255, 0.6)';
-        ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.ellipse(lensX, axisY, 12, 140, 0, 0, Math.PI * 2); ctx.stroke();
-        ctx.shadowBlur = 0;
+    function drawLens(lensX, axisY) {
+        ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(88, 166, 255, 0.6)'; ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(lensX, axisY, 12, canvas.height*0.35, 0, 0, Math.PI*2); ctx.stroke(); ctx.shadowBlur = 0;
     }
-
     function drawObject(x, y, h) {
-        ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(46, 160, 67, 0.5)';
-        ctx.strokeStyle = '#3fb950'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(46, 160, 67, 0.5)'; ctx.strokeStyle = '#3fb950'; ctx.lineWidth = 4; ctx.lineCap = 'round';
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x - 6, y - h + 10); ctx.lineTo(x + 6, y - h + 10); ctx.fillStyle = '#3fb950'; ctx.fill();
-        ctx.shadowBlur = 0;
-        ctx.fillStyle = '#3fb950'; ctx.font = 'bold 14px Consolas'; ctx.textAlign = 'center';
-        ctx.fillText('物体 Object', x, y - h - 15); ctx.textAlign = 'start';
+        ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x - 6, y - h + 10); ctx.lineTo(x + 6, y - h + 10); ctx.fillStyle = '#3fb950'; ctx.fill(); ctx.shadowBlur = 0;
+        ctx.fillStyle = '#3fb950'; ctx.font = 'bold 14px Consolas'; ctx.textAlign = 'center'; ctx.fillText('物体 Object', x, y - h - 15); ctx.textAlign = 'start';
     }
-
     function drawImage(x, y, h, isVirtual) {
         const color = isVirtual ? '#d2a8ff' : '#f2cc60'; 
         ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 4; ctx.lineCap = 'round';
-        if (isVirtual) { ctx.setLineDash([5, 5]); ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(210, 168, 255, 0.5)'; } 
-        else { ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(242, 204, 96, 0.5)'; }
+        if (isVirtual) { ctx.setLineDash([5, 5]); ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(210, 168, 255, 0.5)'; } else { ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(242, 204, 96, 0.5)'; }
         ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
         ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x - 6, y - h + (h > 0 ? 10 : -10)); ctx.lineTo(x + 6, y - h + (h > 0 ? 10 : -10)); ctx.fill();
-        ctx.font = 'bold 14px Consolas'; ctx.textAlign = 'center';
-        const labelCn = isVirtual ? '虚像' : '实像'; 
-        ctx.fillText(labelCn, x, y - h - (h>0?15:-25)); ctx.restore();
+        ctx.font = 'bold 14px Consolas'; ctx.textAlign = 'center'; ctx.fillText(isVirtual ? '虚像' : '实像', x, y - h - (h>0?15:-25)); ctx.restore();
     }
-
     function drawRays(ox, oy, lx, ly, f, v_px, imgH, isVirtual) {
         ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(88, 166, 255, 0.4)';
         ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(lx, oy); ctx.lineTo(lx + f * 10, ly + (oy - ly) * (-10)); ctx.stroke();
@@ -443,26 +364,18 @@
             ctx.beginPath(); ctx.moveTo(lx, oy); ctx.lineTo(lx + v_px, ly + imgH); ctx.moveTo(lx, ly); ctx.lineTo(lx + v_px, ly + imgH); ctx.stroke(); ctx.restore();
         }
     }
-
     function updateHUD(u_cm, v_cm, isVirtual) {
         document.getElementById('val-u').innerText = u_cm.toFixed(1);
-        const vElem = document.getElementById('val-v');
-        const pCn = document.getElementById('img-prop-cn');
-        if (Math.abs(v_cm) === Infinity || isNaN(v_cm)) {
-            vElem.innerText = "∞"; pCn.innerText = "不成像"; pCn.style.color = "#8b949e";
-        } else {
-            vElem.innerText = Math.abs(v_cm).toFixed(1);
-            if (isVirtual) {
-                pCn.innerText = "正立·放大·虚像"; pCn.style.color = "#d2a8ff";
-            } else {
-                let sizeStrCn = (Math.abs(Math.abs(v_cm) - u_cm) < 0.1) ? "等大" : (Math.abs(v_cm) > u_cm) ? "放大" : "缩小";
-                pCn.innerText = `倒立·${sizeStrCn}·实像`; pCn.style.color = "#f2cc60";
-            }
+        const vElem = document.getElementById('val-v'); const pCn = document.getElementById('img-prop-cn');
+        if (Math.abs(v_cm) === Infinity || isNaN(v_cm)) { vElem.innerText = "∞"; pCn.innerText = "不成像"; pCn.style.color = "#8b949e"; } 
+        else { vElem.innerText = Math.abs(v_cm).toFixed(1);
+            if (isVirtual) { pCn.innerText = "正立·放大·虚像"; pCn.style.color = "#d2a8ff"; } 
+            else { let size = (Math.abs(Math.abs(v_cm) - u_cm) < 0.1) ? "等大" : (Math.abs(v_cm) > u_cm) ? "放大" : "缩小"; pCn.innerText = `倒立·${size}·实像`; pCn.style.color = "#f2cc60"; }
         }
     }
 
-    draw(); 
-    updateAllUI();
+    // 初始化
+    setTimeout(() => { resizeCanvas(); updateAllUI(); }, 100); // 延时确保容器渲染完毕
 </script>
 </body>
 </html>
