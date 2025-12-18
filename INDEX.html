@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>AI 光路实验室 v0.5 (公式可视化版)</title>
+    <style>
+        body {
+            margin: 0;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            font-family: 'Consolas', 'Monaco', 'PingFang SC', monospace;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            height: 100vh;
+            justify-content: center;
+            overflow: hidden;
+        }
+
+        /* --- 左侧 HUD 仪表盘 --- */
+        #hud-container {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            display: flex;
+            gap: 15px;
+            flex-wrap: wrap;
+            z-index: 10;
+        }
+
+        .hud-box {
+            background: rgba(22, 27, 34, 0.85);
+            border: 1px solid #30363d;
+            border-radius: 8px;
+            padding: 12px 18px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(10px);
+            min-width: 120px;
+        }
+
+        .hud-label {
+            font-size: 10px;
+            color: #8b949e;
+            margin-bottom: 5px;
+            text-transform: uppercase;
+            line-height: 1.4;
+        }
+        .hud-label strong { font-size: 13px; color: #c9d1d9; display: block; }
+        .hud-value { font-size: 24px; font-weight: bold; color: #58a6ff; font-family: 'Consolas', monospace; }
+        .hud-unit { font-size: 12px; color: #8b949e; margin-left: 4px; }
+        .highlight-text { color: #f2cc60; }
+        .highlight-blue { color: #58a6ff; }
+
+        /* --- 画布容器 --- */
+        #canvas-wrapper {
+            position: relative;
+            box-shadow: 0 0 100px rgba(88, 166, 255, 0.05);
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #30363d;
+        }
+        canvas {
+            background-image: 
+                linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 20px 20px;
+            background-color: #0d1117;
+            cursor: crosshair;
+        }
+
+        /* --- 底部公式投影区 (NEW) --- */
+        #formula-bar {
+            margin-top: 15px;
+            background: #161b22;
+            padding: 10px 30px;
+            border-radius: 12px;
+            border: 1px solid #30363d;
+            display: flex;
+            align-items: center;
+            gap: 30px;
+            box-shadow: 0 0 20px rgba(88, 166, 255, 0.1);
+        }
+        .formula-item {
+            font-family: 'Times New Roman', serif;
+            font-size: 20px;
+            font-style: italic;
+            color: #8b949e;
+        }
+        .formula-live {
+            font-family: 'Consolas', monospace;
+            font-size: 18px;
+            color: #c9d1d9;
+        }
+        .formula-highlight { color: #58a6ff; font-weight: bold; }
+        .formula-result { color: #f2cc60; font-weight: bold; }
+
+        /* --- 右侧控制面板 (升级版) --- */
+        #control-panel {
+            position: absolute;
+            right: 20px;
+            top: 20px;
+            width: 280px;
+            background: rgba(22, 27, 34, 0.95);
+            border: 1px solid #58a6ff;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 30px rgba(88, 166, 255, 0.2);
+            backdrop-filter: blur(10px);
+            z-index: 20;
+        }
+
+        h2 { font-size: 14px; margin: 0 0 15px 0; color: #58a6ff; border-bottom: 1px solid #30363d; padding-bottom: 8px; }
+        
+        .control-group { margin-bottom: 20px; }
+        .control-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+        .control-label { font-size: 12px; color: #c9d1d9; }
+        
+        /* 升级后的输入框 */
+        .input-smart {
+            width: 70px;
+            background: #0d1117;
+            border: 1px solid #30363d;
+            color: #58a6ff;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: 'Consolas', monospace;
+            font-size: 14px;
+            text-align: right;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+        .input-smart:focus { border-color: #58a6ff; box-shadow: 0 0 5px rgba(88,166,255,0.5); }
+
+        /* 滑块样式 */
+        input[type=range] {
+            width: 100%;
+            -webkit-appearance: none;
+            background: transparent;
+        }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            height: 16px; width: 16px;
+            border-radius: 50%; background: #58a6ff;
+            cursor: pointer; margin-top: -6px;
+            box-shadow: 0 0 10px rgba(88, 166, 255, 0.8);
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px;
+            cursor: pointer; background: #30363d; border-radius: 2px;
+        }
+
+        .preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; margin-top: 10px; }
+        .btn-preset {
+            background: #21262d; border: 1px solid #30363d;
+            color: #c9d1d9; padding: 8px 0; border-radius: 6px;
+            font-size: 11px; cursor: pointer; transition: all 0.2s;
+            text-align: center;
+        }
+        .btn-preset:hover { background: #58a6ff; color: #fff; border-color: #58a6ff; }
+
+    </style>
+</head>
+<body>
+
+    <div id="hud-container">
+        <div class="hud-box">
+            <div class="hud-label"><strong>焦距</strong>FOCAL LENGTH (f)</div>
+            <div><span id="hud-f" class="hud-value">10.0</span> <span class="hud-unit">cm</span></div>
+        </div>
+        <div class="hud-box">
+            <div class="hud-label"><strong>物距</strong>OBJECT DISTANCE (u)</div>
+            <div><span id="val-u" class="hud-value highlight-blue">20.0</span> <span class="hud-unit">cm</span></div>
+        </div>
+        <div class="hud-box">
+            <div class="hud-label"><strong>像距</strong>IMAGE DISTANCE (v)</div>
+            <div><span id="val-v" class="hud-value highlight-text">20.0</span> <span class="hud-unit">cm</span></div>
+        </div>
+        <div class="hud-box" style="min-width: 260px;">
+            <div class="hud-label"><strong>成像性质</strong>IMAGE PROPERTY</div>
+            <div id="img-prop-cn" class="hud-value" style="font-size: 18px; line-height: 1.2;">分析中...</div>
+            <div id="img-prop-en" style="font-size: 12px; color: #8b949e; margin-top: 4px;">Analyzing...</div>
+        </div>
+    </div>
+
+    <div id="control-panel">
+        <h2>🧪 实验控制 (Experimental Controls)</h2>
+        
+        <div class="control-group">
+            <div class="control-header">
+                <span class="control-label">透镜焦距 f (cm)</span>
+                <input type="text" id="input-f" class="input-smart" value="10.0">
+            </div>
+            <input type="range" id="slider-f" min="5" max="20" step="0.1" value="10">
+        </div>
+
+        <div class="control-group">
+            <div class="control-header">
+                <span class="control-label">物体位置 u (cm)</span>
+                <input type="text" id="input-u" class="input-smart" value="20.0">
+            </div>
+            <input type="range" id="slider-u" min="2" max="50" step="0.1" value="20">
+        </div>
+
+        <div class="control-group">
+            <div class="control-label" style="margin-bottom:8px;">🚀 经典场景 (Presets)</div>
+            <div class="preset-grid">
+                <button class="btn-preset" onclick="setPreset('camera')">照相机<br>Camera</button>
+                <button class="btn-preset" onclick="setPreset('projector')">投影仪<br>Projector</button>
+                <button class="btn-preset" onclick="setPreset('magnifier')">放大镜<br>Magnifier</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="canvas-wrapper">
+        <canvas id="opticsCanvas" width="1000" height="500"></canvas>
+    </div>
+
+    <div id="formula-bar">
+        <div class="formula-item">
+            1/f = 1/u + 1/v
+        </div>
+        <div style="width: 1px; height: 30px; background: #30363d;"></div>
+        <div class="formula-live" id="formula-dynamic">
+            1/<span class="formula-highlight">10</span> = 1/<span class="formula-highlight">20</span> + 1/<span class="formula-result">20</span>
+        </div>
+    </div>
+
+<script>
+    const canvas = document.getElementById('opticsCanvas');
+    const ctx = canvas.getContext('2d');
+    
+    // 核心配置
+    const SCALE = 10; 
+    let f_cm = 10.0;  
+    let f = f_cm * SCALE;
+
+    const lensX = canvas.width / 2;
+    const axisY = canvas.height / 2;
+    
+    let objectPos = { x: lensX - (20 * SCALE), y: axisY, h: 60 }; 
+    let isDragging = false;
+
+    // --- DOM 元素引用 ---
+    const sliderF = document.getElementById('slider-f');
+    const inputF = document.getElementById('input-f'); // 新增输入框
+    const sliderU = document.getElementById('slider-u');
+    const inputU = document.getElementById('input-u'); // 新增输入框
+    
+    const hudF = document.getElementById('hud-f');
+    const formulaDiv = document.getElementById('formula-dynamic');
+
+    // --- 同步逻辑：输入框改变 -> 更新一切 ---
+    function updateFromInput(type) {
+        if (type === 'f') {
+            let val = parseFloat(inputF.value);
+            if (isNaN(val)) return; // 如果输入的不是数字，暂不处理
+            f_cm = val;
+            f = f_cm * SCALE;
+            sliderF.value = val; // 同步滑块位置
+        } else if (type === 'u') {
+            let val = parseFloat(inputU.value);
+            if (isNaN(val)) return;
+            objectPos.x = lensX - (val * SCALE);
+            sliderU.value = val; // 同步滑块位置
+        }
+        updateAllUI();
+        draw();
+    }
+
+    // --- 同步逻辑：滑块拖动 -> 更新输入框 ---
+    function updateFromSlider(type) {
+        if (type === 'f') {
+            f_cm = parseFloat(sliderF.value);
+            f = f_cm * SCALE;
+            inputF.value = f_cm.toFixed(1); // 同步输入框文字
+        } else if (type === 'u') {
+            const u_cm = parseFloat(sliderU.value);
+            objectPos.x = lensX - (u_cm * SCALE);
+            inputU.value = u_cm.toFixed(1); // 同步输入框文字
+        }
+        updateAllUI();
+        draw();
+    }
+
+    // 绑定事件
+    inputF.addEventListener('input', () => updateFromInput('f'));
+    inputU.addEventListener('input', () => updateFromInput('u'));
+    sliderF.addEventListener('input', () => updateFromSlider('f'));
+    sliderU.addEventListener('input', () => updateFromSlider('u'));
+
+    // --- 界面更新总控 (含公式) ---
+    function updateAllUI() {
+        // 1. 更新 HUD 里的 F 值
+        hudF.innerText = f_cm.toFixed(1);
+        
+        // 2. 更新底部公式
+        const u_cm = (lensX - objectPos.x) / SCALE;
+        let v_cm_display = "∞";
+        
+        // 计算 v (用于显示)
+        if (Math.abs(u_cm - f_cm) > 0.1) {
+            // 1/v = 1/f - 1/u
+            const v_val = (f_cm * u_cm) / (u_cm - f_cm);
+            v_cm_display = Math.abs(v_val).toFixed(1);
+        }
+
+        // 构建 HTML 字符串
+        formulaDiv.innerHTML = `
+            1/<span class="formula-highlight">${f_cm.toFixed(1)}</span> = 
+            1/<span class="formula-highlight">${u_cm.toFixed(1)}</span> + 
+            1/<span class="formula-result">${v_cm_display}</span>
+        `;
+    }
+
+    // --- 预设按钮逻辑 ---
+    function setPreset(type) {
+        if (type === 'camera') {
+            f_cm = 10; objectPos.x = lensX - (30 * SCALE);
+        } else if (type === 'projector') {
+            f_cm = 10; objectPos.x = lensX - (15 * SCALE);
+        } else if (type === 'magnifier') {
+            f_cm = 10; objectPos.x = lensX - (5 * SCALE);
+        }
+        
+        // 更新滑块和输入框
+        f = f_cm * SCALE;
+        sliderF.value = f_cm;
+        inputF.value = f_cm.toFixed(1);
+        
+        const u_cm = (lensX - objectPos.x) / SCALE;
+        sliderU.value = u_cm;
+        inputU.value = u_cm.toFixed(1);
+
+        updateAllUI();
+        draw();
+    }
+
+    // --- 鼠标交互 (拖拽时也要更新输入框) ---
+    function getMousePos(evt) {
+        const rect = canvas.getBoundingClientRect();
+        return { x: evt.clientX - rect.left, y: evt.clientY - rect.top };
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        const pos = getMousePos(e);
+        if (Math.abs(pos.x - objectPos.x) < 30 && Math.abs(pos.y - (axisY - objectPos.h/2)) < 80) {
+            isDragging = true;
+            canvas.style.cursor = 'ew-resize';
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        const pos = getMousePos(e);
+        if (isDragging) {
+            let newX = pos.x;
+            if (newX > lensX - 10) newX = lensX - 10;
+            if (newX < 50) newX = 50;
+            objectPos.x = newX;
+            
+            // 拖拽时同步更新输入框
+            const u_cm = (lensX - objectPos.x) / SCALE;
+            sliderU.value = u_cm.toFixed(1); // 更新滑块
+            inputU.value = u_cm.toFixed(1);  // 更新文本框
+            updateAllUI();
+        } else {
+            if (Math.abs(pos.x - objectPos.x) < 30) canvas.style.cursor = 'grab';
+            else canvas.style.cursor = 'crosshair';
+        }
+        draw();
+    });
+
+    canvas.addEventListener('mouseup', () => { isDragging = false; canvas.style.cursor = 'crosshair'; });
+
+    // --- 绘图引擎 (保持 v0.4 逻辑) ---
+    function draw() {
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        drawGridAndAxis();
+        drawLens();
+
+        const u_px = lensX - objectPos.x;
+        const u_cm = u_px / SCALE;
+        let v_px = 0, imageH = 0, isVirtual = false;
+
+        if (Math.abs(u_px - f) < 1) {
+            v_px = Infinity;
+        } else {
+            v_px = (f * u_px) / (u_px - f);
+            const M = v_px / u_px;
+            imageH = objectPos.h * M;
+            if (u_px < f) isVirtual = true;
+        }
+
+        updateHUD(u_cm, v_px / SCALE, isVirtual);
+        drawObject(objectPos.x, axisY, objectPos.h);
+        
+        const imageX = lensX + v_px;
+        if (v_px !== Infinity) drawImage(imageX, axisY, -imageH, isVirtual);
+
+        drawRays(objectPos.x, objectPos.y - objectPos.h, lensX, axisY, f, v_px, -imageH, isVirtual);
+    }
+
+    // 辅助绘图函数
+    function drawGridAndAxis() {
+        ctx.beginPath(); ctx.strokeStyle = '#30363d'; ctx.lineWidth = 2;
+        ctx.moveTo(0, axisY); ctx.lineTo(canvas.width, axisY); ctx.stroke();
+        ctx.fillStyle = '#8b949e'; ctx.font = '12px Consolas';
+        const points = [-2*f, -f, f, 2*f]; const labels = ['2F', 'F', 'F', '2F'];
+        points.forEach((p, i) => {
+            const px = lensX + p;
+            ctx.beginPath(); ctx.arc(px, axisY, 3, 0, Math.PI*2); ctx.fill();
+            ctx.fillText(labels[i], px - 5, axisY + 20);
+        });
+    }
+
+    function drawLens() {
+        ctx.shadowBlur = 15; ctx.shadowColor = 'rgba(88, 166, 255, 0.6)';
+        ctx.strokeStyle = '#58a6ff'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.ellipse(lensX, axisY, 12, 140, 0, 0, Math.PI * 2); ctx.stroke();
+        ctx.shadowBlur = 0;
+    }
+
+    function drawObject(x, y, h) {
+        ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(46, 160, 67, 0.5)';
+        ctx.strokeStyle = '#3fb950'; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x - 6, y - h + 10); ctx.lineTo(x + 6, y - h + 10); ctx.fillStyle = '#3fb950'; ctx.fill();
+        ctx.shadowBlur = 0;
+        ctx.fillStyle = '#3fb950'; ctx.font = 'bold 14px Consolas'; ctx.textAlign = 'center';
+        ctx.fillText('物体 Object', x, y - h - 15); ctx.textAlign = 'start';
+    }
+
+    function drawImage(x, y, h, isVirtual) {
+        const color = isVirtual ? '#d2a8ff' : '#f2cc60'; 
+        ctx.save(); ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 4; ctx.lineCap = 'round';
+        if (isVirtual) { ctx.setLineDash([5, 5]); ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(210, 168, 255, 0.5)'; } 
+        else { ctx.shadowBlur = 10; ctx.shadowColor = 'rgba(242, 204, 96, 0.5)'; }
+        ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x, y - h); ctx.stroke();
+        ctx.setLineDash([]); ctx.beginPath(); ctx.moveTo(x, y - h); ctx.lineTo(x - 6, y - h + (h > 0 ? 10 : -10)); ctx.lineTo(x + 6, y - h + (h > 0 ? 10 : -10)); ctx.fill();
+        ctx.font = 'bold 14px Consolas'; ctx.textAlign = 'center';
+        const labelCn = isVirtual ? '虚像' : '实像'; const labelEn = isVirtual ? 'Virtual Image' : 'Real Image';
+        ctx.fillText(labelCn + ' ' + labelEn, x, y - h - (h>0?15:-25)); ctx.restore();
+    }
+
+    function drawRays(ox, oy, lx, ly, f, v_px, imgH, isVirtual) {
+        ctx.lineWidth = 1; ctx.strokeStyle = 'rgba(88, 166, 255, 0.4)';
+        ctx.beginPath(); ctx.moveTo(ox, oy); ctx.lineTo(lx, oy); ctx.lineTo(lx + f * 10, ly + (oy - ly) * (-10)); ctx.stroke();
+        ctx.beginPath(); ctx.moveTo(ox, oy); const slope2 = (ly - oy) / (lx - ox); ctx.lineTo(lx + 1000, ly + 1000 * slope2); ctx.stroke();
+        if (isVirtual) {
+            ctx.save(); ctx.setLineDash([4, 6]); ctx.strokeStyle = 'rgba(210, 168, 255, 0.3)';
+            ctx.beginPath(); ctx.moveTo(lx, oy); ctx.lineTo(lx + v_px, ly + imgH); ctx.moveTo(lx, ly); ctx.lineTo(lx + v_px, ly + imgH); ctx.stroke(); ctx.restore();
+        }
+    }
+
+    function updateHUD(u_cm, v_cm, isVirtual) {
+        document.getElementById('val-u').innerText = u_cm.toFixed(1);
+        const vElem = document.getElementById('val-v');
+        const pCn = document.getElementById('img-prop-cn');
+        const pEn = document.getElementById('img-prop-en');
+        if (Math.abs(v_cm) === Infinity || isNaN(v_cm)) {
+            vElem.innerText = "∞"; pCn.innerText = "不成像 / 平行光"; pCn.style.color = "#8b949e"; pEn.innerText = "No Image / Parallel Light";
+        } else {
+            vElem.innerText = Math.abs(v_cm).toFixed(1);
+            if (isVirtual) {
+                pCn.innerText = "正立 · 放大 · 虚像"; pCn.style.color = "#d2a8ff"; pEn.innerText = "Upright · Magnified · Virtual";
+            } else {
+                let sizeStrCn = "", sizeStrEn = "";
+                if (Math.abs(Math.abs(v_cm) - u_cm) < 0.1) { sizeStrCn = "等大"; sizeStrEn = "Same Size"; }
+                else if (Math.abs(v_cm) > u_cm) { sizeStrCn = "放大"; sizeStrEn = "Magnified"; }
+                else { sizeStrCn = "缩小"; sizeStrEn = "Diminished"; }
+                pCn.innerText = `倒立 · ${sizeStrCn} · 实像`; pCn.style.color = "#f2cc60"; pEn.innerText = `Inverted · ${sizeStrEn} · Real`;
+            }
+        }
+    }
+
+    draw(); 
+    updateAllUI(); // 初始化时也显示公式
+</script>
+</body>
+</html>
