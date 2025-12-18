@@ -3,299 +3,151 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AI 光路实验室 v0.9 (终极触控版)</title>
+    <title>AI 光路实验室 v3.0 (视觉版)</title>
     <style>
-        /* 全局样式 - 保持不变 */
-        body {
-            margin: 0; background-color: #0d1117; color: #c9d1d9;
-            font-family: 'Consolas', 'Monaco', 'PingFang SC', monospace;
-            display: flex; flex-direction: column; align-items: center; justify-content: flex-start;
-            min-height: 100vh; overflow-x: hidden; touch-action: pan-y;
-            padding-top: 10px; box-sizing: border-box;
+        body { margin: 0; background: #0d1117; color: #c9d1d9; font-family: 'PingFang SC', monospace; display: flex; flex-direction: column; align-items: center; min-height: 100vh; padding-top: 10px; box-sizing: border-box; touch-action: pan-y; }
+        
+        /* 顶部 AI 栏 */
+        #ai-bar { width: 95vw; max-width: 800px; display: flex; gap: 8px; margin-bottom: 10px; z-index: 100; align-items: center; }
+        #ai-input { flex: 1; background: rgba(22, 27, 34, 0.9); border: 1px solid #30363d; color: #fff; padding: 10px; border-radius: 8px; outline: none; }
+        
+        /* 📷 相机按钮样式 */
+        .btn-icon {
+            background: #30363d; color: #fff; border: 1px solid #8b949e; 
+            padding: 0 15px; height: 40px; border-radius: 8px; cursor: pointer; 
+            font-size: 20px; display: flex; align-items: center; justify-content: center;
         }
+        #btn-analyze { background: #238636; color: #fff; border: none; padding: 0 20px; height: 40px; border-radius: 8px; cursor: pointer; font-weight: bold; white-space: nowrap; }
+        .loading { opacity: 0.7; cursor: wait; }
+        #file-input { display: none; } /* 隐藏文件选择框 */
 
-        /* 响应式布局：HUD */
-        #hud-container {
-            display: flex; width: 95vw; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; pointer-events: none;
-            justify-content: center;
-        }
-        .hud-box {
-            background: rgba(22, 27, 34, 0.85); border: 1px solid #30363d; border-radius: 8px;
-            padding: 8px 10px; text-align: center; flex: 1; min-width: 80px;
-            backdrop-filter: blur(10px);
-        }
-        .hud-value { font-size: 18px; font-weight: bold; color: #58a6ff; font-family: 'Consolas', monospace; }
+        /* HUD & Controls */
+        #hud-container { display: flex; width: 95vw; gap: 5px; margin-bottom: 10px; justify-content: center; flex-wrap: wrap; }
+        .hud-box { background: rgba(22, 27, 34, 0.85); border: 1px solid #30363d; border-radius: 8px; padding: 5px 10px; text-align: center; flex: 1; min-width: 65px; }
+        .hud-value { font-size: 18px; font-weight: bold; color: #58a6ff; font-family: monospace; }
         .hud-label { font-size: 10px; color: #8b949e; display: block; margin-bottom: 2px; }
-        .hud-unit { font-size: 12px; color: #8b949e; }
-        .highlight-blue { color: #58a6ff; } .highlight-text { color: #f2cc60; }
-
-        /* 控制台 */
-        #control-panel {
-            width: 90vw; background: rgba(22, 27, 34, 0.95); border: 1px solid #58a6ff;
-            border-radius: 8px; padding: 12px; margin-bottom: 15px; box-sizing: border-box;
-        }
-        .control-group { margin-bottom: 10px; }
+        
+        #control-panel { width: 95vw; background: rgba(22,27,34,0.9); border: 1px solid #30363d; border-radius: 8px; padding: 10px; margin-bottom: 10px; box-sizing: border-box; }
         .control-header { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 12px; }
-        .input-smart { width: 50px; background: #0d1117; border: 1px solid #30363d; color: #58a6ff; text-align: right; border-radius: 4px; }
-        input[type=range] { width: 100%; -webkit-appearance: none; background: transparent; }
-        input[type=range]::-webkit-slider-thumb { -webkit-appearance: none; height: 18px; width: 18px; border-radius: 50%; background: #58a6ff; margin-top: -7px; }
-        input[type=range]::-webkit-slider-runnable-track { width: 100%; height: 4px; background: #30363d; border-radius: 2px; }
-        .preset-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
-        .btn-preset { background: #21262d; border: 1px solid #30363d; color: #c9d1d9; padding: 8px; border-radius: 6px; font-size: 11px; }
-
-        /* 画布 */
-        #canvas-wrapper {
-            position: relative; width: 95vw; max-width: 800px; aspect-ratio: 2/1;
-            border: 1px solid #30363d; border-radius: 12px; overflow: hidden;
-            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
-            background-size: 20px 20px; background-color: #0d1117;
-            touch-action: none; /* 禁止画布内滚动 */
-        }
-        canvas { display: block; width: 100%; height: 100%; cursor: crosshair; }
-
-        /* 公式 */
-        #formula-bar { margin-top: 10px; padding: 8px 15px; border-radius: 12px; background: #161b22; border: 1px solid #30363d; font-family: 'Consolas', monospace; color: #c9d1d9; font-size: 14px; }
+        .input-smart { width: 40px; background: #0d1117; border: 1px solid #30363d; color: #58a6ff; text-align: right; border-radius: 4px; }
+        input[type=range] { width: 100%; }
+        
+        #canvas-wrapper { position: relative; width: 95vw; max-width: 800px; aspect-ratio: 2/1; border: 1px solid #30363d; border-radius: 12px; overflow: hidden; background: #0d1117; touch-action: none; background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px); background-size: 20px 20px; }
+        canvas { display: block; width: 100%; height: 100%; }
+        #formula-bar { margin-top: 10px; padding: 5px; border-radius: 8px; background: #161b22; border: 1px solid #30363d; font-size: 12px; width: 95vw; text-align: center; color: #8b949e; font-family: monospace; }
         .formula-highlight { color: #58a6ff; font-weight: bold; } .formula-result { color: #f2cc60; font-weight: bold; }
-
-        /* 大屏适配 */
-        @media (min-width: 850px) {
-            body { justify-content: center; padding-top: 0; }
-            #hud-container { position: absolute; top: 20px; left: 20px; width: auto; flex-direction: row; }
-            #control-panel { position: absolute; top: 20px; right: 20px; width: 240px; }
-        }
     </style>
 </head>
 <body>
 
+    <div id="ai-bar">
+        <button id="btn-upload" class="btn-icon" onclick="document.getElementById('file-input').click()">📷</button>
+        <input type="file" id="file-input" accept="image/*">
+        
+        <input type="text" id="ai-input" placeholder="输入描述，或直接拍照上传 ->">
+        <button id="btn-analyze" onclick="callAI()">AI 识别</button>
+    </div>
+
     <div id="hud-container">
-        <div class="hud-box"><span class="hud-label">焦距 F</span><span id="hud-f" class="hud-value">10.0</span><span class="hud-unit">cm</span></div>
-        <div class="hud-box"><span class="hud-label">物距 U</span><span id="val-u" class="hud-value highlight-blue">20.0</span><span class="hud-unit">cm</span></div>
-        <div class="hud-box"><span class="hud-label">像距 V</span><span id="val-v" class="hud-value highlight-text">20.0</span><span class="hud-unit">cm</span></div>
-        <div class="hud-box" style="flex:1.5"><span class="hud-label">性质 Prop</span><span id="img-prop-cn" class="hud-value" style="font-size:14px">分析中...</span></div>
+        <div class="hud-box"><span class="hud-label">焦距 F</span><span id="hud-f" class="hud-value">10.0</span></div>
+        <div class="hud-box"><span class="hud-label">物距 U</span><span id="val-u" class="hud-value" style="color:#58a6ff">20.0</span></div>
+        <div class="hud-box"><span class="hud-label">像距 V</span><span id="val-v" class="hud-value" style="color:#f2cc60">20.0</span></div>
+        <div class="hud-box" style="flex:1.5"><span class="hud-label">性质</span><span id="img-prop-cn" class="hud-value" style="font-size:14px">就绪</span></div>
     </div>
 
     <div id="control-panel">
-        <div class="control-group">
-            <div class="control-header"><span>焦距 f</span><input type="text" id="input-f" class="input-smart" value="10.0"></div>
-            <input type="range" id="slider-f" min="5" max="20" step="0.1" value="10">
-        </div>
-        <div class="control-group">
-            <div class="control-header"><span>物距 u</span><input type="text" id="input-u" class="input-smart" value="20.0"></div>
-            <input type="range" id="slider-u" min="2" max="50" step="0.1" value="20">
-        </div>
-        <div class="preset-grid">
-            <button class="btn-preset" onclick="setPreset('camera')">照相机</button>
-            <button class="btn-preset" onclick="setPreset('projector')">投影仪</button>
-            <button class="btn-preset" onclick="setPreset('magnifier')">放大镜</button>
-        </div>
+        <div style="margin-bottom:5px"><div class="control-header"><span>焦距 f</span><input type="text" id="input-f" class="input-smart" value="10.0"></div><input type="range" id="slider-f" min="5" max="25" step="0.1" value="10"></div>
+        <div><div class="control-header"><span>物距 u</span><input type="text" id="input-u" class="input-smart" value="20.0"></div><input type="range" id="slider-u" min="2" max="60" step="0.1" value="20"></div>
     </div>
 
-    <div id="canvas-wrapper">
-        <canvas id="opticsCanvas"></canvas>
-    </div>
-
-    <div id="formula-bar">
-        1/f = 1/u + 1/v &nbsp;|&nbsp; <span id="formula-dynamic">Loading...</span>
-    </div>
+    <div id="canvas-wrapper"><canvas id="opticsCanvas"></canvas></div>
+    <div id="formula-bar">1/f = 1/u + 1/v &nbsp;|&nbsp; <span id="formula-dynamic">...</span></div>
 
 <script>
+    let currentImageBase64 = null;
+
+    // 监听文件选择
+    document.getElementById('file-input').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        // 按钮变色提示已选择
+        document.getElementById('btn-upload').style.background = "#238636";
+        document.getElementById('btn-upload').innerText = "✅";
+        
+        // 读取图片转 Base64
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            currentImageBase64 = evt.target.result;
+            // 自动触发识别
+            callAI(); 
+        };
+        reader.readAsDataURL(file);
+    });
+
+    async function callAI() {
+        const input = document.getElementById('ai-input');
+        const btn = document.getElementById('btn-analyze');
+        const text = input.value;
+
+        if (!text && !currentImageBase64) return alert("请先输入文字或上传图片");
+
+        btn.innerText = "👀 识别中...";
+        btn.classList.add('loading');
+
+        try {
+            const response = await fetch('http://127.0.0.1:5000/analyze', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ 
+                    text: text,
+                    image: currentImageBase64
+                })
+            });
+            
+            const data = await response.json();
+            console.log("AI Data:", data);
+
+            if(data.f) { f_cm = data.f; f = f_cm * SCALE; sliderF.value = f_cm; inputF.value = f_cm; }
+            if(data.u) { objectPos.x_cm = data.u; sliderU.value = data.u; inputU.value = data.u; }
+            
+            updateAllUI(); draw();
+            
+            if(currentImageBase64) {
+                document.getElementById('btn-upload').style.background = "#30363d";
+                document.getElementById('btn-upload').innerText = "📷";
+                currentImageBase64 = null; 
+                document.getElementById('file-input').value = ''; 
+            }
+
+        } catch (error) {
+            console.error(error);
+            alert("识别失败！请确保 Python 后台正在运行");
+        } finally {
+            btn.innerText = "AI 识别";
+            btn.classList.remove('loading');
+        }
+    }
+
+    // --- 物理引擎 (保持不变) ---
     const canvas = document.getElementById('opticsCanvas');
     const ctx = canvas.getContext('2d');
-    
-    // --- 核心：响应式画布 ---
-    function resizeCanvas() {
-        const container = document.getElementById('canvas-wrapper');
-        canvas.width = container.clientWidth;
-        canvas.height = container.clientHeight;
-        draw();
-    }
+    function resizeCanvas() { const c=document.getElementById('canvas-wrapper'); canvas.width=c.clientWidth; canvas.height=c.clientHeight; draw(); }
     window.addEventListener('resize', resizeCanvas);
-
-    // --- 物理参数 ---
-    const SCALE = 10; // 10px = 1cm
-    let f_cm = 10.0; 
-    let f = f_cm * SCALE;
-    let objectPos = { x_cm: 20.0, h: 60 };
-    let isDragging = false;
-
-    // --- 交互坐标计算 (Pointer Event) ---
-    function getPointerCm(e) {
-        const rect = canvas.getBoundingClientRect();
-        // 兼容鼠标和触摸 (获取第一个触点)
-        const clientX = (e.touches && e.touches.length > 0) ? e.touches[0].clientX : e.clientX;
-        
-        // 映射到 Canvas 内部像素
-        const x_px = (clientX - rect.left) * (canvas.width / rect.width);
-        
-        // 转换为相对于透镜中心的 cm (向左为正)
-        const lensX = canvas.width / 2;
-        return (lensX - x_px) / SCALE;
-    }
-
-    // --- 交互事件处理 ---
-    function handleStart(e) {
-        const u_click = getPointerCm(e);
-        
-        // 🔥 核心修正：判定范围扩大到 4cm (也就是左右各 40px 宽度的区域)
-        // 🔥 核心修正：不再判断 Y 轴高度，只要在这一竖条上点击都算中
-        if (Math.abs(u_click - objectPos.x_cm) < 4.0) {
-            isDragging = true;
-            canvas.style.cursor = 'grabbing'; // 改变光标形状
-        }
-    }
-
-    function handleMove(e) {
-        if (isDragging) {
-            if (e.cancelable) e.preventDefault(); // 防止手机页面滚动
-            
-            let newU = getPointerCm(e);
-            
-            // 限制范围 (防止拖出屏幕)
-            const maxU = (canvas.width / 2) / SCALE - 0.5;
-            if (newU < 1.0) newU = 1.0;
-            if (newU > maxU) newU = maxU;
-            
-            objectPos.x_cm = newU;
-            
-            // 实时更新UI
-            sliderU.value = newU.toFixed(1);
-            inputU.value = newU.toFixed(1);
-            updateAllUI();
-            draw();
-        }
-    }
-
-    function handleEnd(e) {
-        isDragging = false;
-        canvas.style.cursor = 'crosshair';
-    }
-
-    // 绑定所有事件 (Mouse + Touch)
-    canvas.addEventListener('mousedown', handleStart);
-    canvas.addEventListener('mousemove', handleMove);
-    canvas.addEventListener('mouseup', handleEnd);
-    
-    // passive: false 是为了能用 preventDefault 阻止滚动
-    canvas.addEventListener('touchstart', handleStart, { passive: false });
-    canvas.addEventListener('touchmove', handleMove, { passive: false });
-    canvas.addEventListener('touchend', handleEnd);
-
-    // --- UI 联动逻辑 ---
-    const sliderF = document.getElementById('slider-f'); const inputF = document.getElementById('input-f');
-    const sliderU = document.getElementById('slider-u'); const inputU = document.getElementById('input-u');
-
-    function updateFromInput(type) {
-        if (type==='f') { let v=parseFloat(inputF.value); if(!isNaN(v)){f_cm=v; f=f_cm*SCALE; sliderF.value=v;} }
-        else { let v=parseFloat(inputU.value); if(!isNaN(v)){objectPos.x_cm=v; sliderU.value=v;} }
-        updateAllUI(); draw();
-    }
-    function updateFromSlider(type) {
-        if (type==='f') { f_cm=parseFloat(sliderF.value); f=f_cm*SCALE; inputF.value=f_cm.toFixed(1); }
-        else { objectPos.x_cm=parseFloat(sliderU.value); inputU.value=objectPos.x_cm.toFixed(1); }
-        updateAllUI(); draw();
-    }
-
-    inputF.addEventListener('input', ()=>updateFromInput('f')); inputU.addEventListener('input', ()=>updateFromInput('u'));
-    sliderF.addEventListener('input', ()=>updateFromSlider('f')); sliderU.addEventListener('input', ()=>updateFromSlider('u'));
-
-    function setPreset(type) {
-        if(type==='camera'){f_cm=10; objectPos.x_cm=30;}
-        else if(type==='projector'){f_cm=10; objectPos.x_cm=15;}
-        else{f_cm=10; objectPos.x_cm=5;}
-        f=f_cm*SCALE; sliderF.value=f_cm; inputF.value=f_cm.toFixed(1);
-        sliderU.value=objectPos.x_cm; inputU.value=objectPos.x_cm.toFixed(1);
-        updateAllUI(); draw();
-    }
-
-    function updateAllUI() {
-        document.getElementById('hud-f').innerText = f_cm.toFixed(1);
-        document.getElementById('val-u').innerText = objectPos.x_cm.toFixed(1);
-        
-        let v_disp = "∞";
-        const u = objectPos.x_cm;
-        if (Math.abs(u - f_cm) > 0.1) {
-            const v = (f_cm * u) / (u - f_cm);
-            v_disp = Math.abs(v).toFixed(1);
-        }
-        document.getElementById('val-v').innerText = v_disp;
-        document.getElementById('formula-dynamic').innerHTML = 
-            `1/<span class="formula-highlight">${f_cm.toFixed(1)}</span> = 1/<span class="formula-highlight">${u.toFixed(1)}</span> + 1/<span class="formula-result">${v_disp}</span>`;
-    }
-
-    // --- 绘图引擎 ---
-    function draw() {
-        ctx.clearRect(0,0,canvas.width,canvas.height);
-        const lx = canvas.width/2; const ly = canvas.height/2;
-        // 动态高度适配
-        const h = objectPos.h * (canvas.height/400);
-
-        // 轴线与刻度
-        ctx.beginPath(); ctx.strokeStyle='#30363d'; ctx.lineWidth=2; ctx.moveTo(0,ly); ctx.lineTo(canvas.width,ly); ctx.stroke();
-        ctx.fillStyle='#8b949e'; ctx.font='12px Consolas';
-        [-2*f, -f, f, 2*f].forEach((p,i)=>{ 
-            const px=lx+p; ctx.beginPath(); ctx.arc(px,ly,3,0,Math.PI*2); ctx.fill(); 
-            ctx.fillText(['2F','F','F','2F'][i], px-5, ly+20); 
-        });
-
-        // 透镜
-        ctx.shadowBlur=15; ctx.shadowColor='rgba(88,166,255,0.6)'; ctx.strokeStyle='#58a6ff'; ctx.lineWidth=3;
-        ctx.beginPath(); ctx.ellipse(lx,ly,8,canvas.height*0.35,0,0,Math.PI*2); ctx.stroke(); ctx.shadowBlur=0;
-
-        // 计算像
-        const u_px = objectPos.x_cm * SCALE;
-        let v_px=0, imgH=0, isVirt=false;
-        if (Math.abs(u_px-f)<0.5) v_px=Infinity;
-        else {
-            v_px = (f*u_px)/(u_px-f);
-            const M = v_px/u_px; imgH=h*M;
-            if(u_px<f) isVirt=true;
-        }
-
-        // 绘制物体
-        drawArrow(lx-u_px, ly, h, '#3fb950', '物体');
-        
-        // 绘制像
-        if(v_px!==Infinity) {
-            const col = isVirt?'#d2a8ff':'#f2cc60';
-            ctx.save(); if(isVirt)ctx.setLineDash([5,5]);
-            drawArrow(lx+v_px, ly, -imgH, col, isVirt?'虚像':'实像');
-            ctx.restore();
-        }
-
-        // 绘制光线
-        ctx.lineWidth=1; ctx.strokeStyle='rgba(88,166,255,0.4)';
-        // 1. 平行 -> 焦点
-        ctx.beginPath(); ctx.moveTo(lx-u_px, ly-h); ctx.lineTo(lx, ly-h); ctx.lineTo(lx+f*10, ly+(h)*10); ctx.stroke();
-        // 2. 过光心
-        ctx.beginPath(); ctx.moveTo(lx-u_px, ly-h); 
-        const slope = (ly-(ly-h))/(lx-(lx-u_px));
-        ctx.lineTo(lx+1000, ly+1000*slope); ctx.stroke();
-        // 虚像辅助线
-        if(isVirt) {
-             ctx.save(); ctx.setLineDash([4,6]); ctx.strokeStyle='rgba(210,168,255,0.3)';
-             ctx.beginPath(); ctx.moveTo(lx, ly-h); ctx.lineTo(lx+v_px, ly+imgH); 
-             ctx.moveTo(lx, ly); ctx.lineTo(lx+v_px, ly+imgH); ctx.stroke(); ctx.restore();
-        }
-
-        // 更新文字
-        const pCn = document.getElementById('img-prop-cn');
-        if(v_px===Infinity) { pCn.innerText="不成像"; pCn.style.color="#8b949e"; }
-        else {
-            if(isVirt) { pCn.innerText="正立·放大·虚像"; pCn.style.color="#d2a8ff"; }
-            else {
-                let s = (Math.abs(Math.abs(v_px)-u_px)<1)?"等大":(Math.abs(v_px)>u_px)?"放大":"缩小";
-                pCn.innerText=`倒立·${s}·实像`; pCn.style.color="#f2cc60";
-            }
-        }
-    }
-
-    function drawArrow(x, y, h, col, txt) {
-        ctx.shadowBlur=10; ctx.shadowColor=col; ctx.strokeStyle=col; ctx.fillStyle=col; ctx.lineWidth=4; ctx.lineCap='round';
-        ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y-h); ctx.stroke();
-        ctx.beginPath(); ctx.moveTo(x,y-h); ctx.lineTo(x-6,y-h+(h>0?10:-10)); ctx.lineTo(x+6,y-h+(h>0?10:-10)); ctx.fill(); ctx.shadowBlur=0;
-        ctx.font='bold 14px Consolas'; ctx.textAlign='center'; ctx.fillText(txt, x, y-h-(h>0?15:-25)); ctx.textAlign='start';
-    }
-
+    const SCALE = 10; let f_cm = 10.0; let f = f_cm * SCALE; let objectPos = { x_cm: 20.0, h: 60 }; let isDragging = false;
+    function getPointerCm(e) { const rect = canvas.getBoundingClientRect(); const clientX = (e.touches && e.touches.length) ? e.touches[0].clientX : e.clientX; const x_px = (clientX - rect.left) * (canvas.width / rect.width); return (canvas.width/2 - x_px) / SCALE; }
+    function handleStart(e) { if(Math.abs(getPointerCm(e) - objectPos.x_cm) < 4.0) { isDragging = true; canvas.style.cursor = 'grabbing'; } }
+    function handleMove(e) { if(isDragging) { if(e.cancelable) e.preventDefault(); let u = getPointerCm(e); if(u<1) u=1; if(u>((canvas.width/2)/SCALE-1)) u=((canvas.width/2)/SCALE-1); objectPos.x_cm = u; syncUI(); draw(); } }
+    function handleEnd() { isDragging = false; canvas.style.cursor = 'crosshair'; }
+    canvas.addEventListener('mousedown', handleStart); canvas.addEventListener('mousemove', handleMove); canvas.addEventListener('mouseup', handleEnd);
+    canvas.addEventListener('touchstart', handleStart, {passive:false}); canvas.addEventListener('touchmove', handleMove, {passive:false}); canvas.addEventListener('touchend', handleEnd);
+    const sliderF=document.getElementById('slider-f'), inputF=document.getElementById('input-f'); const sliderU=document.getElementById('slider-u'), inputU=document.getElementById('input-u');
+    function syncUI() { sliderU.value = objectPos.x_cm.toFixed(1); inputU.value = objectPos.x_cm.toFixed(1); updateAllUI(); }
+    sliderF.oninput = function() { f_cm=parseFloat(this.value); f=f_cm*SCALE; inputF.value=this.value; updateAllUI(); draw(); }
+    sliderU.oninput = function() { objectPos.x_cm=parseFloat(this.value); inputU.value=this.value; updateAllUI(); draw(); }
+    function updateAllUI() { document.getElementById('hud-f').innerText = f_cm.toFixed(1); document.getElementById('val-u').innerText = objectPos.x_cm.toFixed(1); let v="∞"; const u=objectPos.x_cm; if(Math.abs(u-f_cm)>0.1) v = Math.abs((f_cm*u)/(u-f_cm)).toFixed(1); document.getElementById('val-v').innerText = v; let s = v==="∞" ? "不成像" : (u<f_cm ? "正立放大虚像" : `倒立${Math.abs(v)>u ? '放大':'缩小'}实像`); document.getElementById('img-prop-cn').innerText = s; document.getElementById('formula-dynamic').innerHTML = `1/${f_cm.toFixed(1)} = 1/${u.toFixed(1)} + 1/${v}`; }
+    function draw() { ctx.clearRect(0,0,canvas.width,canvas.height); const lx=canvas.width/2, ly=canvas.height/2; const h = objectPos.h * (canvas.height/400); ctx.beginPath(); ctx.strokeStyle='#30363d'; ctx.moveTo(0,ly); ctx.lineTo(canvas.width,ly); ctx.stroke(); ctx.fillStyle='#8b949e'; ctx.font='12px monospace'; [-2*f, -f, f, 2*f].forEach((p,i)=>{ ctx.beginPath(); ctx.arc(lx+p,ly,3,0,6.28); ctx.fill(); ctx.fillText(['2F','F','F','2F'][i], lx+p-5, ly+20); }); ctx.shadowBlur=15; ctx.shadowColor='#58a6ff'; ctx.strokeStyle='#58a6ff'; ctx.lineWidth=3; ctx.beginPath(); ctx.ellipse(lx,ly,8,canvas.height*0.35,0,0,6.28); ctx.stroke(); ctx.shadowBlur=0; const u_px=objectPos.x_cm*SCALE; let v_px=0, imgH=0, isVirt=false; if(Math.abs(u_px-f)<0.5) v_px=Infinity; else { v_px=(f*u_px)/(u_px-f); imgH=h*(v_px/u_px); if(u_px<f) isVirt=true; } drawArrow(lx-u_px, ly, h, '#3fb950'); if(v_px!==Infinity) { ctx.save(); if(isVirt)ctx.setLineDash([5,5]); drawArrow(lx+v_px, ly, -imgH, isVirt?'#d2a8ff':'#f2cc60'); ctx.restore(); } ctx.lineWidth=1; ctx.strokeStyle='rgba(88,166,255,0.4)'; ctx.beginPath(); ctx.moveTo(lx-u_px,ly-h); ctx.lineTo(lx,ly-h); ctx.lineTo(lx+f*10,ly+h*10); ctx.stroke(); ctx.beginPath(); ctx.moveTo(lx-u_px,ly-h); ctx.lineTo(lx+1000,ly+1000*(h/u_px)); ctx.stroke(); if(isVirt) { ctx.save(); ctx.setLineDash([4,6]); ctx.strokeStyle='rgba(210,168,255,0.3)'; ctx.beginPath(); ctx.moveTo(lx, ly-h); ctx.lineTo(lx+v_px, ly+imgH); ctx.moveTo(lx, ly); ctx.lineTo(lx+v_px, ly+imgH); ctx.stroke(); ctx.restore(); } }
+    function drawArrow(x,y,h,c){ ctx.strokeStyle=c; ctx.fillStyle=c; ctx.lineWidth=3; ctx.beginPath(); ctx.moveTo(x,y); ctx.lineTo(x,y-h); ctx.stroke(); ctx.beginPath(); ctx.moveTo(x,y-h); ctx.lineTo(x-5,y-h+(h>0?10:-10)); ctx.lineTo(x+5,y-h+(h>0?10:-10)); ctx.fill(); }
     setTimeout(()=>{resizeCanvas(); updateAllUI();}, 100);
 </script>
 </body>
